@@ -24,6 +24,21 @@ imagens.jump2.src = 'sprites/sprite_05.png';
 imagens.dead.src  = 'sprites/sprite_09.png';
 imagens.look.src  = 'sprites/sprite_08.png';
 
+const sons = {
+    pulo: new Audio(),
+    morte: new Audio(),
+    inicio: new Audio(),
+    olhando1: new Audio(),   // primeiro áudio da cutscene 2
+    olhando2: new Audio()    // segundo áudio da cutscene 2
+};
+
+// Você vai colocar os caminhos dos seus arquivos:
+sons.olhando1.src = 'memes/among.mp3';
+sons.olhando2.src = 'memes/fudeu.mp3';
+
+let audio1Tocado = false;
+let audio2Tocado = false;
+
 // ===== OBJETOS DO JOGO =====
 const ground = {
     y: 0,
@@ -97,8 +112,28 @@ window.addEventListener('resize', resizeCanvas);
 
 // ===== FUNÇÕES DE DESENHO =====
 function drawGround() {
-    ctx.fillStyle = '#8B4513';
+    // Areia principal
+    ctx.fillStyle = '#C2A36B';
     ctx.fillRect(0, ground.y, canvas.width, ground.height);
+
+    // Camada mais escura embaixo
+    ctx.fillStyle = '#A88B4F';
+    ctx.fillRect(0, ground.y + 26, canvas.width, 14);
+
+    // Detalhes de areia / pedrinhas
+    ctx.fillStyle = '#D4B87A';
+    for (let i = 0; i < canvas.width; i += 38) {
+        ctx.fillRect(i + 6, ground.y + 7, 5, 3);
+        ctx.fillRect(i + 22, ground.y + 15, 4, 2);
+        ctx.fillRect(i + 12, ground.y + 21, 6, 2);
+    }
+
+    // Algumas pedrinhas mais escuras
+    ctx.fillStyle = '#8B7355';
+    for (let i = 0; i < canvas.width; i += 55) {
+        ctx.fillRect(i + 18, ground.y + 10, 3, 3);
+        ctx.fillRect(i + 35, ground.y + 19, 4, 2);
+    }
 }
 
 function drawDino() {
@@ -145,13 +180,30 @@ function atualizarCacto() {
         cacto.x = canvas.width + 50;
     }
 
-    // Desenho temporário do cacto (depois a gente troca por imagem)
+    const x = cacto.x;
+    const y = cacto.y;
+
+    // Formato antigo (mais simples e bom)
     ctx.fillStyle = '#2E8B57';
-    ctx.fillRect(cacto.x + 8, cacto.y, 14, cacto.height);
-    ctx.fillRect(cacto.x, cacto.y + 15, 12, 10);
-    ctx.fillRect(cacto.x, cacto.y + 15, 8, 25);
-    ctx.fillRect(cacto.x + 18, cacto.y + 25, 12, 10);
-    ctx.fillRect(cacto.x + 22, cacto.y + 25, 8, 20);
+
+    // Corpo principal
+    ctx.fillRect(x + 8, y, 14, 55);
+
+    // Braço esquerdo
+    ctx.fillRect(x, y + 15, 12, 10);
+    ctx.fillRect(x, y + 15, 8, 25);
+
+    // Braço direito
+    ctx.fillRect(x + 18, y + 25, 12, 10);
+    ctx.fillRect(x + 22, y + 25, 8, 20);
+
+    // Detalhes (linhas / espinhos)
+    ctx.fillStyle = '#1F6B3F';
+    ctx.fillRect(x + 11, y + 8, 2, 7);
+    ctx.fillRect(x + 14, y + 22, 2, 7);
+    ctx.fillRect(x + 11, y + 38, 2, 7);
+    ctx.fillRect(x + 3, y + 20, 2, 5);
+    ctx.fillRect(x + 25, y + 30, 2, 5);
 }
 
 function verificarColisao() {
@@ -323,6 +375,18 @@ function drawCutscene2() {
     ctx.fillText('O dino olha o meteoro no céu...', canvas.width / 2, 60);
 
     cutscene2Timer++;
+
+    // Toca o primeiro áudio logo no começo da cutscene 2
+    if (!audio1Tocado && cutscene2Timer > 10) {
+        tocarSom(sons.olhando1);
+        audio1Tocado = true;
+    }
+
+    // Toca o segundo áudio mais ou menos na metade (uns 5 segundos)
+    if (!audio2Tocado && cutscene2Timer > 300) {
+        tocarSom(sons.olhando2);
+        audio2Tocado = true;
+    }
 
     if (cutscene2Timer > 600) {
         gameState = 'playing';
