@@ -33,15 +33,21 @@ const ground = {
 const dino = {
     x: 80,
     y: 0,
-    width: 70,          // tamanho que o dino vai ser desenhado
-    height: 80,
+    width: 85,          // tamanho visual
+    height: 95,
     velocityY: 0,
     jumping: false,
     gravity: 0.8,
     jumpForce: -18,
-    frame: 0,           // controla a animação de corrida
+    frame: 0,
     frameTimer: 0,
-    morto: false
+    morto: false,
+
+    // Caixa de colisão (menor que a imagem)
+    colWidth: 50,
+    colHeight: 70,
+    colOffsetX: 18,     // empurra a caixa um pouco pra dentro
+    colOffsetY: 20
 };
 
 const cacto = {
@@ -60,6 +66,13 @@ const asteroide = {
     velocidadeX: 2.8,
     velocidadeY: 1.5
 };
+
+let botoes = [];
+
+// ===== Variáveis (coloca no topo junto com as outras) =====
+let tempoSobrevivido = 0;
+let tempoParaZerar = 90 * 60; // 1 minuto e meio
+let frameCount = 0;
 
 // ===== RESPONSIVO =====
 function resizeCanvas() {
@@ -142,19 +155,53 @@ function atualizarCacto() {
 }
 
 function verificarColisao() {
-    if (!cacto.ativo || dino.morto) return;
+    if (!cacto.ativo || dino.morto || gameState !== 'playing') return;
+
+    const dinoColX = dino.x + dino.colOffsetX;
+    const dinoColY = dino.y + dino.colOffsetY;
 
     if (
-        dino.x < cacto.x + cacto.width &&
-        dino.x + dino.width > cacto.x &&
-        dino.y < cacto.y + cacto.height &&
-        dino.y + dino.height > cacto.y
+        dinoColX < cacto.x + cacto.width &&
+        dinoColX + dino.colWidth > cacto.x &&
+        dinoColY < cacto.y + cacto.height &&
+        dinoColY + dino.colHeight > cacto.y
     ) {
         dino.morto = true;
-        setTimeout(() => {
-            reiniciarJogo();
-        }, 800); // fica morto meio segundo antes de reiniciar
+        gameState = 'morto';
+        criarBotoesMorte();
     }
+}
+
+function criarBotoesMorte() {
+    const centroX = canvas.width / 2;
+    const centroY = canvas.height / 2;
+
+    botoes = [
+        {
+            texto: 'Tentar de Novo',
+            x: centroX - 120,
+            y: centroY + 40,
+            width: 240,
+            height: 50,
+            acao: () => reiniciarJogo()
+        },
+        {
+            texto: 'Voltar pro Início',
+            x: centroX - 120,
+            y: centroY + 110,
+            width: 240,
+            height: 50,
+            acao: () => {
+                gameState = 'cutscene1';
+                dino.morto = false;
+                cacto.ativo = false;
+                cutscene2Timer = 0;
+                asteroide.x = -200;
+                asteroide.y = -60;
+                asteroide.size = 180;
+            }
+        }
+    ];
 }
 
 function reiniciarJogo() {
@@ -165,6 +212,46 @@ function reiniciarJogo() {
     dino.frame = 0;
     cacto.x = canvas.width + 50;
     cacto.velocidade = 4;
+    cacto.ativo = true;
+    gameState = 'playing';
+    botoes = [];
+    tempoSobrevivido = 0;
+    frameCount = 0;
+}
+
+function drawMorto() {
+    // Fundo escuro semi-transparente
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Texto principal
+    ctx.fillStyle = '#ff4444';
+    ctx.font = 'bold 42px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('O dino morreu!', canvas.width / 2, canvas.height / 2 - 60);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '22px Arial';
+    ctx.fillText('O meteoro ainda está vindo...', canvas.width / 2, canvas.height / 2 - 20);
+
+    // Desenha os botões
+    botoes.forEach(botao => {
+        // Fundo do botão
+        ctx.fillStyle = '#222';
+        ctx.fillRect(botao.x, botao.y, botao.width, botao.height);
+
+        // Borda
+        ctx.strokeStyle = '#ff6600';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(botao.x, botao.y, botao.width, botao.height);
+
+        // Texto
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '20px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(botao.texto, botao.x + botao.width / 2, botao.y + botao.height / 2);
+    });
 }
 
 // ===== CUTSCENES =====
@@ -249,6 +336,7 @@ function drawCutscene2() {
 }
 
 function drawPlaying() {
+    // Céu
     ctx.fillStyle = '#87CEEB';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -264,6 +352,7 @@ function drawPlaying() {
     ctx.fill();
 
     if (!dino.morto) {
+        // Física do pulo
         dino.velocityY += dino.gravity;
         dino.y += dino.velocityY;
 
@@ -278,6 +367,25 @@ function drawPlaying() {
     verificarColisao();
     drawGround();
     drawDino();
+
+    // Progresso + velocidade progressiva
+    if (!dino.morto) {
+        tempoSobrevivido++;
+        frameCount++;
+
+        // Aumenta a velocidade bem devagar
+        if (frameCount % 400 === 0) {
+            cacto.velocidade += 0.25;
+            if (cacto.velocidade > 9) {
+                cacto.velocidade = 9;
+            }
+        }
+
+        // Zera depois de 1min30s
+        if (tempoSobrevivido >= tempoParaZerar) {
+            gameState = 'ending';
+        }
+    }
 }
 
 function drawEnding() {
@@ -309,6 +417,47 @@ canvas.addEventListener('touchstart', (e) => {
     jump();
 });
 
+canvas.addEventListener('click', (e) => {
+    if (gameState !== 'morto') return;
+
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    botoes.forEach(botao => {
+        if (
+            mouseX >= botao.x &&
+            mouseX <= botao.x + botao.width &&
+            mouseY >= botao.y &&
+            mouseY <= botao.y + botao.height
+        ) {
+            botao.acao();
+        }
+    });
+});
+
+// Também funciona no celular
+canvas.addEventListener('touchend', (e) => {
+    if (gameState !== 'morto') return;
+    e.preventDefault();
+
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.changedTouches[0];
+    const mouseX = touch.clientX - rect.left;
+    const mouseY = touch.clientY - rect.top;
+
+    botoes.forEach(botao => {
+        if (
+            mouseX >= botao.x &&
+            mouseX <= botao.x + botao.width &&
+            mouseY >= botao.y &&
+            mouseY <= botao.y + botao.height
+        ) {
+            botao.acao();
+        }
+    });
+});
+
 // ===== LOOP PRINCIPAL =====
 function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -319,9 +468,37 @@ function gameLoop() {
         drawCutscene2();
     } else if (gameState === 'playing') {
         drawPlaying();
-    } else if (gameState === 'ending') {
-        drawEnding();
-    }
+    } else if (gameState === 'morto') {
+        // Desenha o cenário congelado (sem atualizar física nem cacto)
+        ctx.fillStyle = '#87CEEB';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Asteroide
+        ctx.beginPath();
+        ctx.arc(asteroide.x, asteroide.y, asteroide.size / 2, 0, Math.PI * 2);
+        ctx.fillStyle = '#ff6600';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(asteroide.x, asteroide.y, asteroide.size / 3, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffaa00';
+        ctx.fill();
+
+        drawGround();
+        drawDino(); // dino morto parado
+
+        // Cacto parado também
+        if (cacto.ativo) {
+            ctx.fillStyle = '#2E8B57';
+            ctx.fillRect(cacto.x + 8, cacto.y, 14, cacto.height);
+            ctx.fillRect(cacto.x, cacto.y + 15, 12, 10);
+            ctx.fillRect(cacto.x, cacto.y + 15, 8, 25);
+            ctx.fillRect(cacto.x + 18, cacto.y + 25, 12, 10);
+            ctx.fillRect(cacto.x + 22, cacto.y + 25, 8, 20);
+        }
+
+     // Por cima a tela de morte
+     drawMorto();
+   }
 
     requestAnimationFrame(gameLoop);
 }
