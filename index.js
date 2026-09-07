@@ -1081,15 +1081,36 @@ function drawVitoria() {
     ctx.fillStyle = '#ff4444';
     ctx.font = 'bold 90px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('F', canvas.width / 2, canvas.height / 2 - 80);
+    ctx.fillText('F', canvas.width / 2, canvas.height / 2 - 100);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = '32px Arial';
-    ctx.fillText('o dino faliceu', canvas.width / 2, canvas.height / 2);
+    ctx.fillText('o dino faliceu', canvas.width / 2, canvas.height / 2 - 20);
 
     ctx.font = '24px Arial';
     ctx.fillStyle = '#ffaa00';
-    ctx.fillText('parabens voce zerou o jogo', canvas.width / 2, canvas.height / 2 + 50);
+    ctx.fillText('parabens voce zerou o jogo', canvas.width / 2, canvas.height / 2 + 30);
+
+    // Botão de reiniciar
+    const btnX = canvas.width / 2 - 120;
+    const btnY = canvas.height / 2 + 80;
+    const btnW = 240;
+    const btnH = 50;
+
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(btnX, btnY, btnW, btnH);
+    ctx.strokeStyle = '#ff6600';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(btnX, btnY, btnW, btnH);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '20px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Jogar de Novo', btnX + btnW / 2, btnY + btnH / 2);
+
+    // Salva a posição do botão para o clique
+    window.botaoVitoria = { x: btnX, y: btnY, width: btnW, height: btnH };
 }
 
 // ===== CUTSCENES =====
@@ -1302,27 +1323,53 @@ canvas.addEventListener('touchstart', e => {
     e.preventDefault();
     jump();
 });
+
 canvas.addEventListener('click', e => {
-    if (gameState !== 'morto') return;
     const rect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-    botoes.forEach(botao => {
-        if (mouseX >= botao.x && mouseX <= botao.x + botao.width &&
-            mouseY >= botao.y && mouseY <= botao.y + botao.height) botao.acao();
-    });
+
+    if (gameState === 'morto') {
+        botoes.forEach(botao => {
+            if (mouseX >= botao.x && mouseX <= botao.x + botao.width &&
+                mouseY >= botao.y && mouseY <= botao.y + botao.height) {
+                botao.acao();
+            }
+        });
+    }
+
+    if (gameState === 'vitoria' && window.botaoVitoria) {
+        const b = window.botaoVitoria;
+        if (mouseX >= b.x && mouseX <= b.x + b.width &&
+            mouseY >= b.y && mouseY <= b.y + b.height) {
+            reiniciarJogo();
+        }
+    }
 });
+
 canvas.addEventListener('touchend', e => {
-    if (gameState !== 'morto') return;
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
     const touch = e.changedTouches[0];
     const mouseX = touch.clientX - rect.left;
     const mouseY = touch.clientY - rect.top;
-    botoes.forEach(botao => {
-        if (mouseX >= botao.x && mouseX <= botao.x + botao.width &&
-            mouseY >= botao.y && mouseY <= botao.y + botao.height) botao.acao();
-    });
+
+    if (gameState === 'morto') {
+        botoes.forEach(botao => {
+            if (mouseX >= botao.x && mouseX <= botao.x + botao.width &&
+                mouseY >= botao.y && mouseY <= botao.y + botao.height) {
+                botao.acao();
+            }
+        });
+    }
+
+    if (gameState === 'vitoria' && window.botaoVitoria) {
+        const b = window.botaoVitoria;
+        if (mouseX >= b.x && mouseX <= b.x + b.width &&
+            mouseY >= b.y && mouseY <= b.y + b.height) {
+            reiniciarJogo();
+        }
+    }
 });
 
 // ===== LOOP =====
