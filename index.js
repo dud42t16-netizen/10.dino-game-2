@@ -25,6 +25,7 @@ let quintaFase = false;
 let sextaFase = false;
 let setimaFase = false;
 
+// Balões
 let mostrarBalaoMeteoro = false;
 let mostrarBalaoDinoGrito = false;
 let mostrarGritoDesespero = false;
@@ -36,19 +37,23 @@ let mostrarBalaoAcaba = false;
 let mostrarBalaoPikomon = false;
 let mostrarBalaoCorre = false;
 
+// Efeitos
 let pedacos = [];
 let explosoes = [];
 let screenShake = 0;
 let audioValaTocado = false;
 
-// Buracos de fogo
+// Obstáculos
 let buracos = [];
 let tempoProximoBuraco = 0;
 
-// Pterossauros (formação V)
+// Pterossauros
 let pterossauros = [];
 let pteroSprite = new Image();
 pteroSprite.src = 'sprites/ptero.png';
+
+// Final do jogo
+let finalizando = false;
 
 // ===== IMAGENS DO DINO =====
 const imagens = {
@@ -82,7 +87,7 @@ const sons = {
     nao: new Audio(),
     acaba: new Audio(),
     pikomon: new Audio(),
-    run: new Audio()          // música de fundo
+    run: new Audio()
 };
 
 sons.olhando1.src = 'memes/among.mp3';
@@ -97,11 +102,11 @@ sons.nao.src = 'memes/nao.mp3';
 sons.acaba.src = 'memes/acaba.mp3';
 sons.pikomon.src = 'memes/pikomon.mp3';
 sons.run.src = 'memes/run.mp3';
-sons.run.volume = 0.45;   // volume mais baixo (0.0 até 1.0)
+sons.run.volume = 0.45;
 
 // Controle da música de fundo (2:08 → 2:40)
-const RUN_START = 128; // 2:08
-const RUN_END   = 160; // 2:40
+const RUN_START = 128;
+const RUN_END   = 160;
 
 sons.run.addEventListener('timeupdate', () => {
     if (sons.run.currentTime >= RUN_END) {
@@ -109,12 +114,26 @@ sons.run.addEventListener('timeupdate', () => {
     }
 });
 
+// Desbloqueio de áudio (ajuda a funcionar no início)
+function desbloquearAudios() {
+    Object.values(sons).forEach(som => {
+        som.muted = true;
+        som.play().then(() => {
+            som.pause();
+            som.currentTime = 0;
+            som.muted = false;
+        }).catch(() => {});
+    });
+}
+window.addEventListener('click', desbloquearAudios, { once: true });
+window.addEventListener('touchstart', desbloquearAudios, { once: true });
+window.addEventListener('keydown', desbloquearAudios, { once: true });
+
 sons.olhando2.addEventListener('ended', () => {
     fudeuTerminou = true;
     mostrarBalao = false;
     tempoPosFudeu = 0;
 
-    // Começa a música de fundo DEPOIS que o dino termina de falar "FUDEU DE VEZ"
     setTimeout(() => {
         if (gameState === 'playing' || gameState === 'cutscene2') {
             sons.run.currentTime = RUN_START;
@@ -136,15 +155,30 @@ sons.voTePegar.addEventListener('ended', () => {
 
 function tocarSom(som) {
     if (!som.src) return;
-    som.pause();
-    som.currentTime = 0;
-    som.play().catch(() => {});
+    try {
+        som.pause();
+        som.currentTime = 0;
+        som.play().catch(() => {});
+    } catch (e) {}
 }
 
 function pararTodosOsSons() {
     Object.values(sons).forEach(som => {
-        som.pause();
-        som.currentTime = 0;
+        try {
+            som.pause();
+            som.currentTime = 0;
+        } catch (e) {}
+    });
+}
+
+function pararSonsExcetoMario() {
+    Object.keys(sons).forEach(chave => {
+        if (chave !== 'mario') {
+            try {
+                sons[chave].pause();
+                sons[chave].currentTime = 0;
+            } catch (e) {}
+        }
     });
 }
 
@@ -231,7 +265,7 @@ function drawDino() {
     }
 }
 
-// ===== BALÕES (mantidos iguais) =====
+// ===== BALÕES =====
 function drawBalao() {
     if (!mostrarBalao) return;
     const balaoX = dino.x + dino.width / 2;
@@ -508,9 +542,10 @@ function drawBalaoCorre() {
     });
 }
 
-// ===== LÓGICA =====
+// ===== LÓGICA DOS OBSTÁCULOS E FASES =====
 function atualizarCacto() {
-    if (!cacto.ativo) return;
+    if (!cacto.ativo || finalizando) return;
+
     cacto.x -= cacto.velocidade;
 
     if (cacto.x + cacto.width < 0) {
@@ -612,7 +647,8 @@ function atualizarCacto() {
 }
 
 function atualizarBuracos() {
-    if (!sextaFase) return;
+    if (!sextaFase || finalizando) return;
+
     tempoProximoBuraco--;
     if (tempoProximoBuraco <= 0) {
         buracos.push({
@@ -643,6 +679,7 @@ function atualizarBuracos() {
         ) {
             dino.morto = true;
             gameState = 'morto';
+            pararSonsExcetoMario();
             tocarSom(sons.mario);
             criarBotoesMorte();
         }
@@ -651,16 +688,14 @@ function atualizarBuracos() {
     }
 }
 
-// ===== PTEROSSAUROS EM FORMAÇÃO V (esquerda → direita) =====
 function soltarPterossauros() {
-    // Formação V: 1 na frente + 2 atrás (um em cima e um embaixo)
-    const baseY = 130; // um pouco abaixo do meteoro
+    const baseY = 130;
     const startX = -120;
 
     pterossauros = [
-        { x: startX,       y: baseY,      velocidade: 3.8 }, // líder (frente)
-        { x: startX - 70,  y: baseY - 45, velocidade: 3.8 }, // atrás cima
-        { x: startX - 70,  y: baseY + 45, velocidade: 3.8 }  // atrás baixo
+        { x: startX,       y: baseY,      velocidade: 3.8 },
+        { x: startX - 70,  y: baseY - 45, velocidade: 3.8 },
+        { x: startX - 70,  y: baseY + 45, velocidade: 3.8 }
     ];
     mostrarBalaoCorre = true;
     setTimeout(() => mostrarBalaoCorre = false, 7000);
@@ -669,7 +704,7 @@ function soltarPterossauros() {
 function atualizarPterossauros() {
     for (let i = pterossauros.length - 1; i >= 0; i--) {
         const p = pterossauros[i];
-        p.x += p.velocidade; // da esquerda para a direita
+        p.x += p.velocidade;
 
         if (pteroSprite.complete) {
             ctx.drawImage(pteroSprite, p.x, p.y, 70, 40);
@@ -755,9 +790,11 @@ function atualizarExplosoes() {
 }
 
 function verificarColisao() {
-    if (!cacto.ativo || dino.morto || gameState !== 'playing') return;
+    if (!cacto.ativo || dino.morto || gameState !== 'playing' || finalizando) return;
+
     const dinoColX = dino.x + dino.colOffsetX;
     const dinoColY = dino.y + dino.colOffsetY;
+
     if (
         dinoColX < cacto.x + cacto.width &&
         dinoColX + dino.colWidth > cacto.x &&
@@ -772,17 +809,10 @@ function verificarColisao() {
     }
 }
 
-function pararSonsExcetoMario() {
-    Object.keys(sons).forEach(chave => {
-        if (chave !== 'mario') {
-            sons[chave].pause();
-            sons[chave].currentTime = 0;
-        }
-    });
-}
-
 function reiniciarJogo() {
     pararTodosOsSons();
+
+    dino.x = 80;
     dino.y = ground.y - dino.height;
     dino.velocityY = 0;
     dino.jumping = false;
@@ -826,10 +856,14 @@ function reiniciarJogo() {
     screenShake = 0;
     audioValaTocado = false;
     tempoProximoBuraco = 0;
+    finalizando = false;
+
     // Reinicia a música de fundo
-    sons.run.currentTime = 128; // 2:08
-    sons.run.volume = 0.45;
-    sons.run.play().catch(() => {});
+    setTimeout(() => {
+        sons.run.currentTime = RUN_START;
+        sons.run.volume = 0.45;
+        sons.run.play().catch(() => {});
+    }, 200);
 }
 
 function criarBotoesMorte() {
@@ -853,6 +887,7 @@ function criarBotoesMorte() {
                 asteroide.x = -200;
                 asteroide.y = -60;
                 asteroide.size = 180;
+                finalizando = false;
                 // reset completo
                 audio1Tocado = false;
                 audio2Tocado = false;
@@ -890,7 +925,6 @@ function criarBotoesMorte() {
 }
 
 function drawMorto() {
-
     ctx.fillStyle = 'rgba(0,0,0,0.78)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#ff4444';
@@ -1020,7 +1054,34 @@ function drawPlaying() {
     ctx.fillStyle = '#ffaa00';
     ctx.fill();
 
-    if (!dino.morto) {
+    // ===== FINAL DO JOGO (últimos 8 segundos) =====
+    if (!finalizando && tempoSobrevivido >= tempoParaZerar - (8 * 60)) {
+        finalizando = true;
+        cacto.ativo = false;
+        buracos = [];
+        pedacos = [];
+        explosoes = [];
+        pterossauros = [];
+    }
+
+    if (finalizando) {
+        // Dino corre sozinho até o final da tela
+        dino.x += 6;
+        dino.y = ground.y - dino.height;
+        dino.jumping = false;
+        dino.velocityY = 0;
+
+        // Animação de corrida
+        dino.frameTimer++;
+        if (dino.frameTimer > 5) {
+            dino.frame = (dino.frame + 1) % 3;
+            dino.frameTimer = 0;
+        }
+
+        if (dino.x > canvas.width + 50) {
+            gameState = 'ending';
+        }
+    } else if (!dino.morto) {
         dino.velocityY += dino.gravity;
         dino.y += dino.velocityY;
         if (dino.y + dino.height > ground.y) {
@@ -1030,42 +1091,45 @@ function drawPlaying() {
         }
     }
 
-    atualizarCacto();
-    atualizarBuracos();
-    atualizarPterossauros();
-    verificarColisao();
+    if (!finalizando) {
+        atualizarCacto();
+        atualizarBuracos();
+        atualizarPterossauros();
+        verificarColisao();
+    }
+
     drawGround();
     drawDino();
 
-    drawBalaoMeteoro();
-    drawBalaoDinoGrito();
-    drawGritoDesespero();
-    drawBalaoMatar();
-    drawBalaoCalma();
-    drawBalaoNao();
-    drawBalaoValaFinal();
-    drawBalaoAcaba();
-    drawBalaoPikomon();
-    drawBalaoCorre();
-
-    atualizarPedacos();
-    atualizarExplosoes();
+    if (!finalizando) {
+        drawBalaoMeteoro();
+        drawBalaoDinoGrito();
+        drawGritoDesespero();
+        drawBalaoMatar();
+        drawBalaoCalma();
+        drawBalaoNao();
+        drawBalaoValaFinal();
+        drawBalaoAcaba();
+        drawBalaoPikomon();
+        drawBalaoCorre();
+        atualizarPedacos();
+        atualizarExplosoes();
+    }
 
     if (screenShake > 0) ctx.restore();
 
-    if (!dino.morto) {
+    if (!dino.morto && !finalizando) {
         tempoSobrevivido++;
         frameCount++;
         if (frameCount % 400 === 0) {
             cacto.velocidade += 0.25;
             if (cacto.velocidade > 9) cacto.velocidade = 9;
         }
-        if (tempoSobrevivido >= tempoParaZerar) gameState = 'ending';
     }
 }
 
 function drawEnding() {
-    sons.run.pause();
+    pararTodosOsSons();
     ctx.fillStyle = '#05051a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#fff';
@@ -1085,7 +1149,7 @@ function drawEnding() {
 
 // ===== CONTROLES =====
 function jump() {
-    if (!dino.jumping && !dino.morto && gameState === 'playing') {
+    if (!dino.jumping && !dino.morto && gameState === 'playing' && !finalizando) {
         dino.velocityY = dino.jumpForce;
         dino.jumping = true;
     }
