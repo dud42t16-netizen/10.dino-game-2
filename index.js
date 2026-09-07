@@ -114,20 +114,51 @@ sons.run.addEventListener('timeupdate', () => {
     }
 });
 
-// Desbloqueio de áudio (ajuda a funcionar no início)
-function desbloquearAudios() {
+// ======================================================
+// ===== DESBLOQUEIO DE ÁUDIO SUPER REFORÇADO (MOBILE) =====
+// ======================================================
+let audiosDesbloqueados = false;
+
+function forcarDesbloqueioAudios() {
+    if (audiosDesbloqueados) return;
+    audiosDesbloqueados = true;
+
+    console.log('Tentando desbloquear todos os áudios...');
+
     Object.values(sons).forEach(som => {
-        som.muted = true;
-        som.play().then(() => {
-            som.pause();
-            som.currentTime = 0;
-            som.muted = false;
-        }).catch(() => {});
+        try {
+            som.muted = true;
+            som.volume = 0;
+            const p = som.play();
+            if (p !== undefined) {
+                p.then(() => {
+                    som.pause();
+                    som.currentTime = 0;
+                    som.muted = false;
+                    som.volume = (som === sons.run) ? 0.45 : 1;
+                }).catch(() => {
+                    som.muted = false;
+                    som.volume = (som === sons.run) ? 0.45 : 1;
+                });
+            }
+        } catch (e) {}
     });
 }
-window.addEventListener('click', desbloquearAudios, { once: true });
-window.addEventListener('touchstart', desbloquearAudios, { once: true });
-window.addEventListener('keydown', desbloquearAudios, { once: true });
+
+// Vários eventos + captura em fases diferentes
+['click', 'touchstart', 'touchend', 'pointerdown', 'keydown', 'mousedown'].forEach(evt => {
+    document.addEventListener(evt, forcarDesbloqueioAudios, { once: false, passive: true, capture: true });
+    window.addEventListener(evt, forcarDesbloqueioAudios, { once: false, passive: true, capture: true });
+    canvas.addEventListener(evt, forcarDesbloqueioAudios, { once: false, passive: true, capture: true });
+});
+
+// Também tenta desbloquear quando a página ganha foco
+window.addEventListener('focus', forcarDesbloqueioAudios);
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) forcarDesbloqueioAudios();
+});
+
+// ======================================================
 
 sons.olhando2.addEventListener('ended', () => {
     fudeuTerminou = true;
@@ -137,9 +168,10 @@ sons.olhando2.addEventListener('ended', () => {
     setTimeout(() => {
         if (gameState === 'playing' || gameState === 'cutscene2') {
             sons.run.currentTime = RUN_START;
+            sons.run.volume = 0.45;
             sons.run.play().catch(() => {});
         }
-    }, 400);
+    }, 300);
 });
 
 sons.voTePegar.addEventListener('ended', () => {
@@ -154,11 +186,24 @@ sons.voTePegar.addEventListener('ended', () => {
 });
 
 function tocarSom(som) {
-    if (!som.src) return;
+    if (!som || !som.src) return;
+
     try {
         som.pause();
         som.currentTime = 0;
-        som.play().catch(() => {});
+        som.muted = false;
+        if (som !== sons.run) som.volume = 1;
+
+        const promise = som.play();
+        if (promise !== undefined) {
+            promise.catch(() => {
+                // Tenta de novo depois de um pequeno delay
+                setTimeout(() => {
+                    som.currentTime = 0;
+                    som.play().catch(() => {});
+                }, 180);
+            });
+        }
     } catch (e) {}
 }
 
@@ -542,10 +587,9 @@ function drawBalaoCorre() {
     });
 }
 
-// ===== LÓGICA DOS OBSTÁCULOS E FASES =====
+// ===== LÓGICA =====
 function atualizarCacto() {
     if (!cacto.ativo || finalizando) return;
-
     cacto.x -= cacto.velocidade;
 
     if (cacto.x + cacto.width < 0) {
@@ -630,7 +674,6 @@ function atualizarCacto() {
         }
     }
 
-    // desenha cacto
     const x = cacto.x, y = cacto.y;
     ctx.fillStyle = '#2E8B57';
     ctx.fillRect(x + 8, y, 14, 55);
@@ -648,7 +691,6 @@ function atualizarCacto() {
 
 function atualizarBuracos() {
     if (!sextaFase || finalizando) return;
-
     tempoProximoBuraco--;
     if (tempoProximoBuraco <= 0) {
         buracos.push({
@@ -691,11 +733,10 @@ function atualizarBuracos() {
 function soltarPterossauros() {
     const baseY = 130;
     const startX = -120;
-
     pterossauros = [
-        { x: startX,       y: baseY,      velocidade: 3.8 },
-        { x: startX - 70,  y: baseY - 45, velocidade: 3.8 },
-        { x: startX - 70,  y: baseY + 45, velocidade: 3.8 }
+        { x: startX, y: baseY, velocidade: 3.8 },
+        { x: startX - 70, y: baseY - 45, velocidade: 3.8 },
+        { x: startX - 70, y: baseY + 45, velocidade: 3.8 }
     ];
     mostrarBalaoCorre = true;
     setTimeout(() => mostrarBalaoCorre = false, 7000);
@@ -705,14 +746,10 @@ function atualizarPterossauros() {
     for (let i = pterossauros.length - 1; i >= 0; i--) {
         const p = pterossauros[i];
         p.x += p.velocidade;
-
         if (pteroSprite.complete) {
             ctx.drawImage(pteroSprite, p.x, p.y, 70, 40);
         }
-
-        if (p.x > canvas.width + 100) {
-            pterossauros.splice(i, 1);
-        }
+        if (p.x > canvas.width + 100) pterossauros.splice(i, 1);
     }
 }
 
@@ -791,10 +828,8 @@ function atualizarExplosoes() {
 
 function verificarColisao() {
     if (!cacto.ativo || dino.morto || gameState !== 'playing' || finalizando) return;
-
     const dinoColX = dino.x + dino.colOffsetX;
     const dinoColY = dino.y + dino.colOffsetY;
-
     if (
         dinoColX < cacto.x + cacto.width &&
         dinoColX + dino.colWidth > cacto.x &&
@@ -811,7 +846,6 @@ function verificarColisao() {
 
 function reiniciarJogo() {
     pararTodosOsSons();
-
     dino.x = 80;
     dino.y = ground.y - dino.height;
     dino.velocityY = 0;
@@ -858,12 +892,11 @@ function reiniciarJogo() {
     tempoProximoBuraco = 0;
     finalizando = false;
 
-    // Reinicia a música de fundo
     setTimeout(() => {
         sons.run.currentTime = RUN_START;
         sons.run.volume = 0.45;
         sons.run.play().catch(() => {});
-    }, 200);
+    }, 250);
 }
 
 function criarBotoesMorte() {
@@ -888,7 +921,6 @@ function criarBotoesMorte() {
                 asteroide.y = -60;
                 asteroide.size = 180;
                 finalizando = false;
-                // reset completo
                 audio1Tocado = false;
                 audio2Tocado = false;
                 fudeuTerminou = false;
@@ -992,49 +1024,38 @@ function drawCutscene1() {
 function drawCutscene2() {
     ctx.fillStyle = '#87CEEB';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
     const tamanhoAtual = asteroide.size * zoomAsteroide;
-
     ctx.beginPath();
     ctx.arc(asteroide.x, asteroide.y, tamanhoAtual / 2, 0, Math.PI * 2);
     ctx.fillStyle = '#ff6600';
     ctx.fill();
-
     ctx.beginPath();
     ctx.arc(asteroide.x, asteroide.y, tamanhoAtual / 3, 0, Math.PI * 2);
     ctx.fillStyle = '#ffaa00';
     ctx.fill();
-
     drawGround();
     drawDino();
     drawBalao();
-
     ctx.fillStyle = '#000';
     ctx.font = '22px Arial';
     ctx.textAlign = 'center';
     ctx.fillText('O dino olha o meteoro no céu...', canvas.width / 2, 60);
-
     cutscene2Timer++;
 
-    // Among
     if (cutscene2Timer > 180 && !audio1Tocado) {
         tocarSom(sons.olhando1);
         audio1Tocado = true;
     }
+    if (audio1Tocado && zoomAsteroide < 1.15) zoomAsteroide += 0.0012;
 
-    if (audio1Tocado && zoomAsteroide < 1.15) {
-        zoomAsteroide += 0.0012;
-    }
-
-    // Fudeu
     if (cutscene2Timer > 480 && !audio2Tocado) {
         tocarSom(sons.olhando2);
         audio2Tocado = true;
         mostrarBalao = true;
     }
 
-    // Segurança: se o áudio não tocar ou travar, força a continuação depois de um tempo
-    if (cutscene2Timer > 900 && !fudeuTerminou) {  // ~15 segundos de segurança
+    // Segurança contra travamento
+    if (cutscene2Timer > 950 && !fudeuTerminou) {
         fudeuTerminou = true;
         mostrarBalao = false;
     }
@@ -1050,8 +1071,7 @@ function drawCutscene2() {
             dino.jumping = false;
             dino.morto = false;
 
-            // Toca a música de fundo
-            sons.run.currentTime = 128;
+            sons.run.currentTime = RUN_START;
             sons.run.volume = 0.45;
             sons.run.play().catch(() => {});
         }
@@ -1079,7 +1099,7 @@ function drawPlaying() {
     ctx.fillStyle = '#ffaa00';
     ctx.fill();
 
-    // ===== FINAL DO JOGO (últimos 8 segundos) =====
+    // Final do jogo (últimos 8 segundos)
     if (!finalizando && tempoSobrevivido >= tempoParaZerar - (8 * 60)) {
         finalizando = true;
         cacto.ativo = false;
@@ -1090,13 +1110,11 @@ function drawPlaying() {
     }
 
     if (finalizando) {
-        // Dino corre sozinho até o final da tela
         dino.x += 6;
         dino.y = ground.y - dino.height;
         dino.jumping = false;
         dino.velocityY = 0;
 
-        // Animação de corrida
         dino.frameTimer++;
         if (dino.frameTimer > 5) {
             dino.frame = (dino.frame + 1) % 3;
