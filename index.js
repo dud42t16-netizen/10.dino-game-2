@@ -992,33 +992,53 @@ function drawCutscene1() {
 function drawCutscene2() {
     ctx.fillStyle = '#87CEEB';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
     const tamanhoAtual = asteroide.size * zoomAsteroide;
+
     ctx.beginPath();
     ctx.arc(asteroide.x, asteroide.y, tamanhoAtual / 2, 0, Math.PI * 2);
     ctx.fillStyle = '#ff6600';
     ctx.fill();
+
     ctx.beginPath();
     ctx.arc(asteroide.x, asteroide.y, tamanhoAtual / 3, 0, Math.PI * 2);
     ctx.fillStyle = '#ffaa00';
     ctx.fill();
+
     drawGround();
     drawDino();
     drawBalao();
+
     ctx.fillStyle = '#000';
     ctx.font = '22px Arial';
     ctx.textAlign = 'center';
     ctx.fillText('O dino olha o meteoro no céu...', canvas.width / 2, 60);
+
     cutscene2Timer++;
+
+    // Among
     if (cutscene2Timer > 180 && !audio1Tocado) {
         tocarSom(sons.olhando1);
         audio1Tocado = true;
     }
-    if (audio1Tocado && zoomAsteroide < 1.15) zoomAsteroide += 0.0012;
+
+    if (audio1Tocado && zoomAsteroide < 1.15) {
+        zoomAsteroide += 0.0012;
+    }
+
+    // Fudeu
     if (cutscene2Timer > 480 && !audio2Tocado) {
         tocarSom(sons.olhando2);
         audio2Tocado = true;
         mostrarBalao = true;
     }
+
+    // Segurança: se o áudio não tocar ou travar, força a continuação depois de um tempo
+    if (cutscene2Timer > 900 && !fudeuTerminou) {  // ~15 segundos de segurança
+        fudeuTerminou = true;
+        mostrarBalao = false;
+    }
+
     if (fudeuTerminou) {
         tempoPosFudeu++;
         if (tempoPosFudeu > 300) {
@@ -1029,6 +1049,11 @@ function drawCutscene2() {
             dino.velocityY = 0;
             dino.jumping = false;
             dino.morto = false;
+
+            // Toca a música de fundo
+            sons.run.currentTime = 128;
+            sons.run.volume = 0.45;
+            sons.run.play().catch(() => {});
         }
     }
 }
