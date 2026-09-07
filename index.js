@@ -54,6 +54,11 @@ pteroSprite.src = 'sprites/ptero.png';
 
 // Final do jogo
 let finalizando = false;
+let cutsceneFinalTimer = 0;
+let meteoroFinalY = -200;
+let meteoroFinalSize = 80;
+let explosaoFinal = false;
+let explosaoRaio = 0;
 
 // ===== IMAGENS DO DINO =====
 const imagens = {
@@ -74,7 +79,7 @@ imagens.jump2.src = 'sprites/sprite_05.png';
 imagens.dead.src  = 'sprites/sprite_09.png';
 imagens.look.src  = 'sprites/sprite_08.png';
 
-// ===== ÁUDIOS =====
+// ===== ÁUDIOS + CONTROLE DE VOLUME INDIVIDUAL =====
 const sons = {
     olhando1: new Audio(),
     olhando2: new Audio(),
@@ -90,6 +95,7 @@ const sons = {
     run: new Audio()
 };
 
+// Caminhos dos arquivos
 sons.olhando1.src = 'memes/among.mp3';
 sons.olhando2.src = 'memes/fudeu.mp3';
 sons.voTePegar.src = 'memes/vo-te-pegar.mp3';
@@ -102,7 +108,24 @@ sons.nao.src = 'memes/nao.mp3';
 sons.acaba.src = 'memes/acaba.mp3';
 sons.pikomon.src = 'memes/pikomon.mp3';
 sons.run.src = 'memes/run.mp3';
-sons.run.volume = 0.45;
+
+// ==========================================
+// ===== CONTROLE DE VOLUME DE CADA ÁUDIO =====
+// (mude os valores de 0.0 até 1.0)
+// ==========================================
+sons.olhando1.volume = 0.9;      // among.mp3
+sons.olhando2.volume = 0.9;      // fudeu.mp3
+sons.voTePegar.volume = 0.85;    // vo-te-pegar.mp3
+sons.vala.volume = 0.9;          // vala-minha-nossa-senhora.mp3
+sons.mario.volume = 0.8;         // mario.mp3 (morte)
+sons.lutador.volume = 0.45;      // lutador.mp3
+sons.matar.volume = 0.9;         // matar.mp3
+sons.calma.volume = 0.85;        // calma.mp3
+sons.nao.volume = 0.7;           // nao.mp3
+sons.acaba.volume = 0.9;         // acaba.mp3
+sons.pikomon.volume = 0.85;      // pikomon.mp3
+sons.run.volume = 0.45;          // música de fundo (run.mp3)
+// ==========================================
 
 // Controle da música de fundo (2:08 → 2:40)
 const RUN_START = 128;
@@ -114,19 +137,16 @@ sons.run.addEventListener('timeupdate', () => {
     }
 });
 
-// ======================================================
-// ===== DESBLOQUEIO DE ÁUDIO SUPER REFORÇADO (MOBILE) =====
-// ======================================================
+// ===== DESBLOQUEIO DE ÁUDIO REFORÇADO =====
 let audiosDesbloqueados = false;
 
 function forcarDesbloqueioAudios() {
     if (audiosDesbloqueados) return;
     audiosDesbloqueados = true;
 
-    console.log('Tentando desbloquear todos os áudios...');
-
     Object.values(sons).forEach(som => {
         try {
+            const volOriginal = som.volume;
             som.muted = true;
             som.volume = 0;
             const p = som.play();
@@ -135,31 +155,28 @@ function forcarDesbloqueioAudios() {
                     som.pause();
                     som.currentTime = 0;
                     som.muted = false;
-                    som.volume = (som === sons.run) ? 0.45 : 1;
+                    som.volume = volOriginal;
                 }).catch(() => {
                     som.muted = false;
-                    som.volume = (som === sons.run) ? 0.45 : 1;
+                    som.volume = volOriginal;
                 });
             }
         } catch (e) {}
     });
 }
 
-// Vários eventos + captura em fases diferentes
 ['click', 'touchstart', 'touchend', 'pointerdown', 'keydown', 'mousedown'].forEach(evt => {
     document.addEventListener(evt, forcarDesbloqueioAudios, { once: false, passive: true, capture: true });
     window.addEventListener(evt, forcarDesbloqueioAudios, { once: false, passive: true, capture: true });
     canvas.addEventListener(evt, forcarDesbloqueioAudios, { once: false, passive: true, capture: true });
 });
 
-// Também tenta desbloquear quando a página ganha foco
 window.addEventListener('focus', forcarDesbloqueioAudios);
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden) forcarDesbloqueioAudios();
 });
 
-// ======================================================
-
+// ===== EVENTOS DE ÁUDIO =====
 sons.olhando2.addEventListener('ended', () => {
     fudeuTerminou = true;
     mostrarBalao = false;
@@ -168,7 +185,6 @@ sons.olhando2.addEventListener('ended', () => {
     setTimeout(() => {
         if (gameState === 'playing' || gameState === 'cutscene2') {
             sons.run.currentTime = RUN_START;
-            sons.run.volume = 0.45;
             sons.run.play().catch(() => {});
         }
     }, 300);
@@ -187,17 +203,13 @@ sons.voTePegar.addEventListener('ended', () => {
 
 function tocarSom(som) {
     if (!som || !som.src) return;
-
     try {
         som.pause();
         som.currentTime = 0;
         som.muted = false;
-        if (som !== sons.run) som.volume = 1;
-
         const promise = som.play();
         if (promise !== undefined) {
             promise.catch(() => {
-                // Tenta de novo depois de um pequeno delay
                 setTimeout(() => {
                     som.currentTime = 0;
                     som.play().catch(() => {});
@@ -609,8 +621,8 @@ function atualizarCacto() {
             audio.play().catch(() => {});
             const parar = () => setTimeout(() => audio.pause(), (audio.duration / 2) * 1000);
             if (audio.duration) parar(); else audio.onloadedmetadata = parar;
-            setTimeout(() => { criarLevaPedacos(); screenShake = 22; }, 400);
-            setTimeout(() => { criarLevaPedacos(); screenShake = 26; }, 1600);
+            setTimeout(() => { criarLevaPedacos(); screenShake = 28; }, 400);
+            setTimeout(() => { criarLevaPedacos(); screenShake = 32; }, 1600);
             setTimeout(() => mostrarGritoDesespero = false, 4000);
         }
         if (cactosPulados === 31 && !terceiraFaseMeteoro) {
@@ -630,16 +642,16 @@ function atualizarCacto() {
             quartaFaseMeteoro = true;
             mostrarBalaoNao = true;
             tocarSom(sons.nao);
-            setTimeout(() => { criarLevaPedacos(); screenShake = 20; }, 300);
-            setTimeout(() => { criarLevaPedacos(); screenShake = 24; }, 1100);
-            setTimeout(() => { criarLevaPedacos(); screenShake = 28; }, 2000);
+            setTimeout(() => { criarLevaPedacos(); screenShake = 26; }, 300);
+            setTimeout(() => { criarLevaPedacos(); screenShake = 30; }, 1100);
+            setTimeout(() => { criarLevaPedacos(); screenShake = 34; }, 2000);
             setTimeout(() => mostrarBalaoNao = false, 4000);
         }
         if (cactosPulados === 54 && !quintaFase) {
             quintaFase = true;
             cacto.ativo = false;
-            setTimeout(() => { criarLevaPedacos(); screenShake = 20; }, 500);
-            setTimeout(() => { criarLevaPedacos(); screenShake = 24; }, 1600);
+            setTimeout(() => { criarLevaPedacos(); screenShake = 26; }, 500);
+            setTimeout(() => { criarLevaPedacos(); screenShake = 30; }, 1600);
             setTimeout(() => {
                 tocarSom(sons.vala);
                 mostrarBalaoValaFinal = true;
@@ -652,9 +664,9 @@ function atualizarCacto() {
                             mostrarBalaoAcaba = false;
                             setTimeout(() => {
                                 sextaFase = true;
-                                setTimeout(() => { criarLevaPedacosFrente(); screenShake = 18; }, 300);
-                                setTimeout(() => { criarLevaPedacosFrente(); screenShake = 22; }, 1200);
-                                setTimeout(() => { criarLevaPedacosFrente(); screenShake = 26; }, 2200);
+                                setTimeout(() => { criarLevaPedacosFrente(); screenShake = 24; }, 300);
+                                setTimeout(() => { criarLevaPedacosFrente(); screenShake = 28; }, 1200);
+                                setTimeout(() => { criarLevaPedacosFrente(); screenShake = 32; }, 2200);
 
                                 setTimeout(() => {
                                     setimaFase = true;
@@ -755,32 +767,33 @@ function atualizarPterossauros() {
 
 function soltarPedacos() {
     criarLevaPedacos();
-    setTimeout(() => { criarLevaPedacos(); screenShake = 14; }, 1200);
-    setTimeout(() => { criarLevaPedacos(); screenShake = 16; }, 2400);
+    setTimeout(() => { criarLevaPedacos(); screenShake = 18; }, 1100);
+    setTimeout(() => { criarLevaPedacos(); screenShake = 22; }, 2200);
 }
 
 function criarLevaPedacos() {
-    for (let i = 0; i < 12; i++) {
+    // Mais intensas agora
+    for (let i = 0; i < 18; i++) {
         pedacos.push({
-            x: 60 + Math.random() * 160,
-            y: 30 + Math.random() * 70,
-            vx: (Math.random() - 0.5) * 7,
-            vy: Math.random() * 3.5 + 2,
-            size: 8 + Math.random() * 15,
-            vida: 130
+            x: 50 + Math.random() * 180,
+            y: 20 + Math.random() * 80,
+            vx: (Math.random() - 0.5) * 9,
+            vy: Math.random() * 4 + 2.5,
+            size: 9 + Math.random() * 16,
+            vida: 140
         });
     }
 }
 
 function criarLevaPedacosFrente() {
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 14; i++) {
         pedacos.push({
-            x: 100 + Math.random() * 80,
-            y: 40 + Math.random() * 50,
-            vx: 6 + Math.random() * 5,
-            vy: Math.random() * 2 + 1,
-            size: 9 + Math.random() * 12,
-            vida: 100
+            x: 90 + Math.random() * 100,
+            y: 30 + Math.random() * 60,
+            vx: 7 + Math.random() * 6,
+            vy: Math.random() * 2.5 + 1.5,
+            size: 10 + Math.random() * 14,
+            vida: 110
         });
     }
 }
@@ -790,7 +803,7 @@ function atualizarPedacos() {
         const p = pedacos[i];
         p.x += p.vx;
         p.y += p.vy;
-        p.vy += 0.25;
+        p.vy += 0.28;
         p.vida--;
 
         ctx.fillStyle = '#ff6600';
@@ -803,10 +816,10 @@ function atualizarPedacos() {
         ctx.fill();
 
         if (p.y > ground.y - 10) {
-            explosoes.push({ x: p.x, y: ground.y - 5, raio: 5, vida: 20 });
+            explosoes.push({ x: p.x, y: ground.y - 5, raio: 6, vida: 22 });
             pedacos.splice(i, 1);
-            screenShake = Math.max(screenShake, 8);
-        } else if (p.vida <= 0 || p.x > canvas.width + 50) {
+            screenShake = Math.max(screenShake, 12);
+        } else if (p.vida <= 0 || p.x > canvas.width + 60) {
             pedacos.splice(i, 1);
         }
     }
@@ -815,11 +828,11 @@ function atualizarPedacos() {
 function atualizarExplosoes() {
     for (let i = explosoes.length - 1; i >= 0; i--) {
         const e = explosoes[i];
-        e.raio += 1.2;
+        e.raio += 1.4;
         e.vida--;
         ctx.beginPath();
         ctx.arc(e.x, e.y, e.raio, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(255, 100, 0, ${e.vida / 20})`;
+        ctx.strokeStyle = `rgba(255, 100, 0, ${e.vida / 22})`;
         ctx.lineWidth = 3;
         ctx.stroke();
         if (e.vida <= 0) explosoes.splice(i, 1);
@@ -891,10 +904,14 @@ function reiniciarJogo() {
     audioValaTocado = false;
     tempoProximoBuraco = 0;
     finalizando = false;
+    cutsceneFinalTimer = 0;
+    meteoroFinalY = -200;
+    meteoroFinalSize = 80;
+    explosaoFinal = false;
+    explosaoRaio = 0;
 
     setTimeout(() => {
         sons.run.currentTime = RUN_START;
-        sons.run.volume = 0.45;
         sons.run.play().catch(() => {});
     }, 250);
 }
@@ -921,6 +938,7 @@ function criarBotoesMorte() {
                 asteroide.y = -60;
                 asteroide.size = 180;
                 finalizando = false;
+                // reset completo
                 audio1Tocado = false;
                 audio2Tocado = false;
                 fudeuTerminou = false;
@@ -951,6 +969,11 @@ function criarBotoesMorte() {
                 pterossauros = [];
                 screenShake = 0;
                 audioValaTocado = false;
+                cutsceneFinalTimer = 0;
+                meteoroFinalY = -200;
+                meteoroFinalSize = 80;
+                explosaoFinal = false;
+                explosaoRaio = 0;
             }
         }
     ];
@@ -979,6 +1002,94 @@ function drawMorto() {
         ctx.textBaseline = 'middle';
         ctx.fillText(botao.texto, botao.x + botao.width / 2, botao.y + botao.height / 2);
     });
+}
+
+// ===== CUTSCENE FINAL DO METEORO CAINDO =====
+function drawCutsceneFinal() {
+    cutsceneFinalTimer++;
+
+    // Céu
+    ctx.fillStyle = '#1a0a00';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Chão
+    drawGround();
+
+    // Meteoro caindo
+    if (!explosaoFinal) {
+        meteoroFinalY += 4.5;
+        meteoroFinalSize += 1.8;
+
+        ctx.beginPath();
+        ctx.arc(canvas.width / 2, meteoroFinalY, meteoroFinalSize / 2, 0, Math.PI * 2);
+        ctx.fillStyle = '#ff4400';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(canvas.width / 2, meteoroFinalY, meteoroFinalSize / 3, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffaa00';
+        ctx.fill();
+
+        // Quando chega no chão → explode
+        if (meteoroFinalY + meteoroFinalSize / 2 >= ground.y) {
+            explosaoFinal = true;
+            screenShake = 40;
+            // Cria várias explosões
+            for (let i = 0; i < 25; i++) {
+                explosoes.push({
+                    x: canvas.width / 2 + (Math.random() - 0.5) * 300,
+                    y: ground.y - 10 + (Math.random() - 0.5) * 40,
+                    raio: 10 + Math.random() * 20,
+                    vida: 40 + Math.random() * 20
+                });
+            }
+        }
+    } else {
+        // Tela toda laranja durante a explosão
+        ctx.fillStyle = `rgba(255, 80, 0, ${Math.min(1, explosaoRaio / 200)})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        explosaoRaio += 8;
+        atualizarExplosoes();
+
+        // Depois da explosão vai pra tela final
+        if (cutsceneFinalTimer > 180) {
+            gameState = 'vitoria';
+        }
+    }
+
+    // Screen shake forte
+    if (screenShake > 0) {
+        ctx.save();
+        ctx.translate((Math.random() - 0.5) * screenShake, (Math.random() - 0.5) * screenShake);
+        screenShake *= 0.92;
+        if (screenShake < 0.5) screenShake = 0;
+        ctx.restore();
+    }
+}
+
+// ===== TELA DE VITÓRIA =====
+function drawVitoria() {
+    ctx.fillStyle = '#05051a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Estrelas
+    ctx.fillStyle = '#ffffff';
+    for (let i = 0; i < 120; i++) {
+        ctx.fillRect((i * 73) % canvas.width, (i * 41) % canvas.height, 2, 2);
+    }
+
+    ctx.fillStyle = '#ff4444';
+    ctx.font = 'bold 90px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('F', canvas.width / 2, canvas.height / 2 - 80);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '32px Arial';
+    ctx.fillText('o dino faliceu', canvas.width / 2, canvas.height / 2);
+
+    ctx.font = '24px Arial';
+    ctx.fillStyle = '#ffaa00';
+    ctx.fillText('parabens voce zerou o jogo', canvas.width / 2, canvas.height / 2 + 50);
 }
 
 // ===== CUTSCENES =====
@@ -1054,7 +1165,6 @@ function drawCutscene2() {
         mostrarBalao = true;
     }
 
-    // Segurança contra travamento
     if (cutscene2Timer > 950 && !fudeuTerminou) {
         fudeuTerminou = true;
         mostrarBalao = false;
@@ -1072,7 +1182,6 @@ function drawCutscene2() {
             dino.morto = false;
 
             sons.run.currentTime = RUN_START;
-            sons.run.volume = 0.45;
             sons.run.play().catch(() => {});
         }
     }
@@ -1122,7 +1231,14 @@ function drawPlaying() {
         }
 
         if (dino.x > canvas.width + 50) {
-            gameState = 'ending';
+            // Vai pra cutscene do meteoro caindo
+            gameState = 'cutsceneFinal';
+            cutsceneFinalTimer = 0;
+            meteoroFinalY = -200;
+            meteoroFinalSize = 80;
+            explosaoFinal = false;
+            explosaoRaio = 0;
+            pararTodosOsSons();
         }
     } else if (!dino.morto) {
         dino.velocityY += dino.gravity;
@@ -1171,25 +1287,6 @@ function drawPlaying() {
     }
 }
 
-function drawEnding() {
-    pararTodosOsSons();
-    ctx.fillStyle = '#05051a';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#fff';
-    for (let i = 0; i < 100; i++) {
-        ctx.fillRect((i * 83) % canvas.width, (i * 47) % canvas.height, 2, 2);
-    }
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 36px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('Parabéns!', canvas.width / 2, canvas.height / 2 - 50);
-    ctx.font = '22px Arial';
-    ctx.fillText('O dino conseguiu fugir do meteoro...', canvas.width / 2, canvas.height / 2);
-    ctx.font = '18px Arial';
-    ctx.fillStyle = '#ffaa00';
-    ctx.fillText('(Final provisório)', canvas.width / 2, canvas.height / 2 + 50);
-}
-
 // ===== CONTROLES =====
 function jump() {
     if (!dino.jumping && !dino.morto && gameState === 'playing' && !finalizando) {
@@ -1231,6 +1328,7 @@ canvas.addEventListener('touchend', e => {
 // ===== LOOP =====
 function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
     if (gameState === 'cutscene1') drawCutscene1();
     else if (gameState === 'cutscene2') drawCutscene2();
     else if (gameState === 'playing') drawPlaying();
@@ -1249,7 +1347,12 @@ function gameLoop() {
         drawGround();
         drawDino();
         drawMorto();
-    } else if (gameState === 'ending') drawEnding();
+    } else if (gameState === 'cutsceneFinal') {
+        drawCutsceneFinal();
+    } else if (gameState === 'vitoria') {
+        drawVitoria();
+    }
+
     requestAnimationFrame(gameLoop);
 }
 
